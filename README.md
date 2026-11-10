@@ -58,8 +58,40 @@ fp16/fp32 CPU load needs far more RAM/disk than a free GitHub runner offers.
 
 ## Verdict
 
-_Pending the first dispatched run — this section is updated from the actual
-run artifact (`results/attempt.md`), not from the pre-run audit alone._
+**BLOCKED on a free CPU GitHub runner** — verified by actual dispatched runs,
+not just the audit:
+
+- Run 1: https://github.com/moos-labs/fingpt-runner/actions/runs/42823808293 — `completed / success`
+- Run 2 (final, with bitsandbytes installed): https://github.com/moos-labs/fingpt-runner/actions/runs/42824221210 — `completed / success`
+
+What actually happened in run 2 (full detail in that run's `results`
+artifact, `attempt.md`):
+
+- The upstream FinGPT repo cloned fine (HEAD `ac5c5443fbeeafad801e7a3c188e4f24cfaad4d8`).
+- The live HF audit reproduced the table above exactly (smallest base:
+  `THUDM/chatglm2-6b`, 12.49 GB fp16, ~6.24 GB int8).
+- The ChatGLM2 tokenizer loaded OK on CPU (`ChatGLMTokenizer`).
+- The base model did **not** load. With torch 2.5.1+cpu and
+  bitsandbytes 0.44.1 installed, `cuda_available=False`, and
+  `AutoModel.from_pretrained(..., load_in_8bit=True)` failed in
+  transformers' bitsandbytes quantizer validation with exactly:
+
+```text
+RuntimeError: CUDA is required but not available for bitsandbytes.
+```
+
+- That is the only CPU-viable loading route for these bases: an unquantized
+  CPU load needs the full 12.5–26 GB of weights (fp16 download, ~2× that in
+  fp32 RAM) — beyond the ~6 GB int8 budget and impractical in a free
+  GitHub Actions job. The FinGPT demo code itself loads with
+  `device_map="cuda:0", load_in_8bit=True`, i.e. it assumes a GPU.
+
+So: **no FinGPT sentiment inference ran, and no sentiment numbers exist.**
+`results/sentiment.json` is only written if a load ever succeeds. To run
+FinGPT sentiment for real, use a GPU (Colab-class is enough for the
+ChatGLM2-6B / Llama-2-7B multi-task adapters in 8-bit) and load the
+dedicated adapter `FinGPT/fingpt-sentiment_llama2-13b_lora` on
+`NousResearch/Llama-2-13b-hf` in 8-bit, exactly as its model card shows.
 
 ## Outputs
 
