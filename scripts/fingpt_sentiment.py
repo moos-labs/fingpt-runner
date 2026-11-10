@@ -144,6 +144,18 @@ import json, sys, traceback
 base, adapter = sys.argv[1], sys.argv[2]
 out = {"base": base, "adapter": adapter}
 try:
+    import torch
+    out["torch"] = torch.__version__
+    out["cuda_available"] = torch.cuda.is_available()
+except Exception as e:
+    out["torch_error"] = str(e)
+try:
+    import bitsandbytes
+    out["bitsandbytes"] = bitsandbytes.__version__
+except Exception as e:
+    out["bitsandbytes_error"] = str(e)
+print("ENV", json.dumps(out), flush=True)
+try:
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained(base, trust_remote_code=True)
     out["tokenizer"] = f"loaded OK ({tok.__class__.__name__})"
@@ -282,6 +294,9 @@ def main():
     lines.append("")
     lines.append("## Load attempt outcome")
     lines.append("")
+    lines.append(f"- Environment: torch={load_json.get('torch')}, "
+                 f"bitsandbytes={load_json.get('bitsandbytes')}, "
+                 f"cuda_available={load_json.get('cuda_available')}")
     lines.append(f"- Tokenizer: {load_json.get('tokenizer', load_json.get('tokenizer_error', 'not recorded'))}")
     if inference_ran:
         lines.append("- Base + adapter loaded in int8 on CPU and generation ran; "
